@@ -1,0 +1,73 @@
+name: Snapshots
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"   # every 2 hours (UTC); GitHub often starts these a bit late
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Take snapshots even where it's dark"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshots
+
+jobs:
+  snapshot:
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: ${{ !vars.RUNNER }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Deno (yt-dlp needs it for YouTube)
+        if: ${{ !vars.RUNNER }}
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install ffmpeg
+        if: ${{ !vars.RUNNER }}
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install Python packages
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -q -U -r requirements.txt
+
+      - name: Take snapshots
+        env:
+          FORCE: ${{ inputs.force }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          YT_PROXY: ${{ secrets.YT_PROXY }}
+        run: |
+          if [ -n "$YT_COOKIES" ]; then
+            export YT_COOKIES_FILE="$RUNNER_TEMP/cookies.txt"
+            printf '%s\n' "$YT_COOKIES" > "$YT_COOKIES_FILE"
+          fi
+          "$RUNNER_TEMP/venv/bin/python" scripts/snapshot.py
+
+      - name: Commit new images
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/cookies.txt"
+          [ -d screenshots ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add screenshots
+          if git diff --cached --quiet; then echo "No new images"; exit 0; fi
+          git commit -q -m "Snapshots $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for attempt in 1 2 3; do
+            git pull -q --rebase && git push -q && exit 0
+            sleep 5
+          done
+          exit 1
