@@ -1,0 +1,28 @@
+# Streams to watch. One entry per stream.
+#   name      letters, numbers, . _ - only (used in folder and file names)
+#   url       the YouTube live URL
+#   lat, lon  where the camera is, in decimal degrees (used to work out daylight)
+#   tz        the camera's timezone, e.g. America/Los_Angeles
+#
+# Snapshots are only taken while the sun is at least this many degrees above
+# the horizon. Use -6 to include dawn and dusk.
+min_sun_elevation: 0
+
+streams:
+  - name: summit-west-base
+    url: https://www.youtube.com/watch?v=vhO8nNqg9iw
+    lat: 47.4243
+    lon: -121.4142
+    tz: America/Los_Angeles
+
+  - name: silver-fir-base
+    url: https://www.youtube.com/watch?v=H7HwsNLqVC8
+    lat: 47.4074
+    lon: -121.3924
+    tz: America/Los_Angeles
+
+  - name: summit-central-top
+    url: https://www.youtube.com/watch?v=w4Sno8NIjmU
+    lat: 47.4003
+    lon: -121.4116
+    tz: America/Los_Angeles
