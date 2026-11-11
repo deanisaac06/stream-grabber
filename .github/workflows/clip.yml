@@ -1,0 +1,97 @@
+name: Grab a clip
+run-name: "Clip: ${{ inputs.stream }}, start ${{ inputs.start }}, ${{ inputs.duration }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      stream:
+        description: "Stream: a name from streams.yml, or any YouTube live URL"
+        required: true
+        default: summit-west-base
+      start:
+        description: "Start: how long ago (3h30m, 45m) or a clock time in the camera's timezone (14:30, 2:30pm)"
+        required: true
+        default: 1h
+      duration:
+        description: "Duration (10m, 90s, 1h)"
+        required: true
+        default: 10m
+      quality:
+        description: "Maximum resolution"
+        type: choice
+        options: ["1080", "720", "480", "360"]
+        default: "1080"
+
+permissions:
+  contents: read
+
+jobs:
+  clip:
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: ${{ !vars.RUNNER }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Deno (yt-dlp needs it for YouTube)
+        if: ${{ !vars.RUNNER }}
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install ffmpeg
+        if: ${{ !vars.RUNNER }}
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install Python packages
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -q -U -r requirements.txt
+
+      - name: Make the clip
+        id: clip
+        env:
+          STREAM: ${{ inputs.stream }}
+          START: ${{ inputs.start }}
+          DURATION: ${{ inputs.duration }}
+          QUALITY: ${{ inputs.quality }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          YT_PROXY: ${{ secrets.YT_PROXY }}
+        run: |
+          if [ -n "$YT_COOKIES" ]; then
+            export YT_COOKIES_FILE="$RUNNER_TEMP/cookies.txt"
+            printf '%s\n' "$YT_COOKIES" > "$YT_COOKIES_FILE"
+          fi
+          "$RUNNER_TEMP/venv/bin/python" scripts/clip.py
+
+      - name: Upload the clip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.clip.outputs.name }}
+          path: ${{ steps.clip.outputs.file }}
+          retention-days: 3
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Copy to Google Drive (optional)
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+          DRIVE_FOLDER: ${{ vars.DRIVE_FOLDER || 'stream-clips' }}
+          CLIP: ${{ steps.clip.outputs.file }}
+        run: |
+          if [ -z "$RCLONE_CONF" ]; then echo "No RCLONE_CONF secret, skipping the Drive copy."; exit 0; fi
+          if ! command -v rclone >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq rclone; fi
+          conf="$RUNNER_TEMP/rclone.conf"
+          trap 'rm -f "$conf"' EXIT
+          printf '%s\n' "$RCLONE_CONF" > "$conf"
+          rclone --config "$conf" copy "$CLIP" "gdrive:$DRIVE_FOLDER"
+          echo "Also copied to Google Drive: $DRIVE_FOLDER/$(basename "$CLIP")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up
+        if: always()
+        run: rm -rf clips "$RUNNER_TEMP/cookies.txt"
