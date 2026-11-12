@@ -61,6 +61,9 @@ jobs:
         run: |
           rm -f "$RUNNER_TEMP/cookies.txt"
           [ -d screenshots ] || exit 0
+          # one folder per camera: move any photos still in old day folders up a level
+          find screenshots -mindepth 3 -type f -name '*.jpg' -exec sh -c 'mv -n "$1" "${1%/*/*}/"' _ {} \;
+          find screenshots -mindepth 2 -type d -empty -delete
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add screenshots
