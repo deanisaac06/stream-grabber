@@ -1,30 +1,45 @@
 # Stream grabber
 
-Two GitHub Actions workflows for YouTube live streams:
+Three GitHub Actions workflows for YouTube live ski cams at The Summit at Snoqualmie and Alpental:
 
-- **Snapshots** saves one frame from each stream every 2 hours, skipping any stream where it's currently dark.
-- **Grab a clip** downloads a chosen stretch of the last 12 hours of a stream and hands you an .mp4.
+- **Snapshots** saves one photo per camera every hour, from 1 hour before sunrise to 1 hour after sunset.
+- **Grab a clip** downloads a chosen stretch of the last 12 hours of a stream as an .mp4.
+- **Download photos** zips up one camera's photos (or all of them) for download.
+
+## Cameras
+
+| Name | Stream |
+|---|---|
+| summit-west-base | https://www.youtube.com/watch?v=vhO8nNqg9iw |
+| silver-fir-base | https://www.youtube.com/watch?v=H7HwsNLqVC8 |
+| summit-central-top | https://www.youtube.com/watch?v=w4Sno8NIjmU |
+| alpental-mid | https://www.youtube.com/watch?v=c_XLrUYV8tk |
+| alpental-base | https://www.youtube.com/watch?v=8wk81COX2cg |
+
+To add a camera, add an entry to `streams.yml` (name, url, lat, lon, tz) and add the same name to the `options` list in `.github/workflows/download-photos.yml`.
 
 ## Files
 
 | Path | What it does |
 |---|---|
-| `streams.yml` | The streams: URL, camera latitude/longitude, timezone |
-| `.github/workflows/snapshots.yml` | Runs `scripts/snapshot.py` every 2 hours and commits the images |
+| `streams.yml` | The cameras (URL, latitude/longitude, timezone) and the photo window |
+| `.github/workflows/snapshots.yml` | Runs `scripts/snapshot.py` every hour and commits the photos |
 | `.github/workflows/clip.yml` | Runs `scripts/clip.py` on demand and uploads the .mp4 |
-| `scripts/common.py` | Config loading and yt-dlp options shared by both |
+| `.github/workflows/download-photos.yml` | Zips a camera's photos for download |
+| `scripts/common.py` | Config loading and yt-dlp options shared by the scripts |
 | `scripts/clip_input.py`, `clip_youtube.py`, `clip_files.py` | Parts of the clip tool: reading the form, finding segments, downloading and joining |
-
-## Setup
-
-1. Edit `streams.yml` if you want to add or change streams.
-2. Open the **Actions** tab, pick **Snapshots**, click **Run workflow**, tick "even where it's dark", and run it. This tests whether YouTube lets GitHub in (see below).
-
-After that, snapshots run on their own.
 
 ## Snapshots
 
-Images are committed as `screenshots/<stream>/<date>/<stream>_<date>_<time>.jpg` using each camera's local time. "Daylight" means the sun is above the horizon at the camera; set `min_sun_elevation` in `streams.yml` to -6 to include dawn and dusk.
+Photos are saved as `screenshots/<camera>/<camera>_<date>_<time>.jpg`: one flat folder per camera, named in the camera's local time. Sorting by name puts them in time order, ready to drop into a timelapse.
+
+The photo window is set by `minutes_before_sunrise` and `minutes_after_sunset` in `streams.yml` (both 60). Sunrise and sunset are worked out for each camera's location every day, so the window follows the seasons. Brightness and fog are ignored; it goes by the clock.
+
+To take a photo right now: Actions → **Snapshots** → **Run workflow**, tick "even where it's dark", and run it. Those photos join the timeline too.
+
+## Download photos
+
+Actions → **Download photos** → **Run workflow**, pick a camera (or `all`), and run it. Open the finished run and download the zip under **Artifacts**. Zips are kept for 3 days; run it again anytime. You can also browse `screenshots/` on the Code tab.
 
 ## Grab a clip
 
@@ -32,12 +47,12 @@ Actions → **Grab a clip** → **Run workflow**, then fill in:
 
 | Field | What to type | Examples |
 |---|---|---|
-| stream | A name from streams.yml, or any YouTube live URL | summit-west-base |
+| stream | A camera name from the table above, or any YouTube live URL | alpental-base |
 | start | How long ago the clip starts, or a clock time in the camera's timezone | 3h30m, 45m, 14:30, 2:30pm |
 | duration | How long the clip is | 10m, 90s, 1h |
-| quality | Maximum resolution | 1080 |
+| quality | Maximum resolution | 1080, 720, 480, 360 |
 
-When the run finishes, open it and download the clip from **Artifacts** at the bottom of the page. It arrives as a .zip with the .mp4 inside and is kept for 3 days. Clips are cut on segment boundaries, so they may start a few seconds early and run a few seconds long.
+When the run finishes, open it and download the clip from **Artifacts** at the bottom of the page. It arrives as a .zip with the .mp4 inside and is kept for 3 days. Clips are cut on segment boundaries, so they may start a few seconds early and run a few seconds long. Clips only reach back as far as the stream's rewind (up to about 12 hours, and never past a stream restart).
 
 ### Optional: also copy clips to Google Drive
 
@@ -49,16 +64,17 @@ Clips then also land in a Drive folder called `stream-clips`. To use another fol
 
 ## If YouTube blocks GitHub
 
-YouTube often answers cloud servers with "Sign in to confirm you're not a bot". If a run fails with that, pick one:
+YouTube often answers cloud servers with "Sign in to confirm you're not a bot". This repo uses the cookies fix. Cookies expire every few weeks: when runs start failing with that error again (GitHub emails you about failed scheduled runs), export fresh cookies and update the `YT_COOKIES` secret.
 
-- **Cookies.** Sign in to YouTube with a spare Google account, export cookies.txt (Netscape format) with a browser extension, and save its contents as the secret `YT_COOKIES`. Redo this when they expire.
+- **Cookies (in use).** Open an Incognito window, sign in to YouTube with a spare Google account (not your main one), export cookies.txt in Netscape format with the "Get cookies.txt LOCALLY" extension, then close the window without signing out. In the repo: Settings → Secrets and variables → Actions → `YT_COOKIES` → update, and paste the whole file.
 - **Your own machine.** Set up a [self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners) at home (needs Python 3, ffmpeg and Deno; rclone too for the Drive copy), then add a repository variable `RUNNER` with the value `self-hosted`. This is the most dependable fix.
 - **A proxy.** Save a proxy URL as the secret `YT_PROXY`.
 
 ## Good to know
 
-- Scheduled runs are often 5 to 30 minutes late.
-- A stream needs rewind (DVR) for clips to work, and you can only reach back to the last restart.
-- Snapshots add roughly 1 to 2 MB per stream per day. Delete old date folders now and then.
-- Private repos get limited free Actions minutes and artifact storage. 1080p clips are roughly 30 to 45 MB per minute, so use 720 for long ones.
+- Scheduled runs are often 5 to 30 minutes late, and GitHub occasionally skips one, so expect roughly (not exactly) one photo per hour.
+- Daytime photos are roughly 200 to 400 KB each, so with 5 cameras the repo grows by a few GB a year. GitHub starts warning at around 1 to 5 GB, so within a few months either lower the snapshot resolution or move older photos out (for example to Google Drive).
+- The repo is public: code, photos, run logs and clip downloads can be seen by anyone, but secrets stay hidden. Only people with write access can start runs. Public repos have no Actions minutes limit.
+- 1080p clips are roughly 30 to 45 MB per minute; use 720 for long ones.
+- The photos from 2026-11-11 ending in `_1752` and `_1826` are nighttime test shots; leave them out of timelapses if you like.
 - Only record streams you own or have permission to record; YouTube's terms restrict downloading otherwise.
