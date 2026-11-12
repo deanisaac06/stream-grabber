@@ -44,7 +44,7 @@ def grab_frame(stream, when):
     fmt = next((f for f in candidates if f.get("vcodec") not in (None, "none")), candidates[0])
 
     local = when.astimezone(ZoneInfo(stream["tz"]))
-    folder = OUT / stream["name"] / local.strftime("%Y-%m-%d")
+    folder = OUT / stream["name"]  # one flat folder per camera; filenames sort by date and time
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"{stream['name']}_{local.strftime('%Y-%m-%d_%H%M')}.jpg"
 
