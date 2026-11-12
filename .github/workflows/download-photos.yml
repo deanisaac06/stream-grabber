@@ -1,0 +1,33 @@
+name: Download photos
+
+on:
+  workflow_dispatch:
+    inputs:
+      camera:
+        description: "Which camera's photos to download"
+        type: choice
+        options:
+          - summit-central-top
+          - summit-west-base
+          - silver-fir-base
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: screenshots
+
+      - name: Package photos
+        uses: actions/upload-artifact@v4
+        with:
+          name: photos-${{ inputs.camera }}
+          path: screenshots/${{ inputs.camera != 'all' && inputs.camera || '' }}
+          retention-days: 3
+          compression-level: 0
+          if-no-files-found: error
