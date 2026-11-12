@@ -10,6 +10,8 @@ on:
           - summit-central-top
           - summit-west-base
           - silver-fir-base
+          - alpental-mid
+          - alpental-base
           - all
 
 permissions:
