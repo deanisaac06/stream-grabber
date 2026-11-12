@@ -3,11 +3,11 @@
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from astral import Observer
-from astral.sun import elevation
+from astral.sun import elevation, sun
 from yt_dlp import YoutubeDL
 
 from common import ROOT, explain, load_config, summary, ydl_options
@@ -18,6 +18,19 @@ MAX_HEIGHT = int(os.environ.get("SNAPSHOT_MAX_HEIGHT", "1080"))
 
 def sun_elevation(stream, when):
     return elevation(Observer(latitude=float(stream["lat"]), longitude=float(stream["lon"])), when)
+
+
+def in_photo_window(stream, now, config):
+    """True from N minutes before local sunrise until N minutes after local sunset."""
+    tz = ZoneInfo(stream["tz"])
+    observer = Observer(latitude=float(stream["lat"]), longitude=float(stream["lon"]))
+    try:
+        times = sun(observer, date=now.astimezone(tz).date(), tzinfo=tz)
+    except ValueError:  # sun never rises or sets that day; fall back to sun height
+        return sun_elevation(stream, now) > -6
+    start = times["sunrise"] - timedelta(minutes=float(config.get("minutes_before_sunrise", 60)))
+    end = times["sunset"] + timedelta(minutes=float(config.get("minutes_after_sunset", 60)))
+    return start <= now <= end
 
 
 def grab_frame(stream, when):
@@ -56,9 +69,9 @@ def main():
 
     for stream in streams:
         height = sun_elevation(stream, now)
-        if height < threshold and not force:
+        if not in_photo_window(stream, now, config) and not force:
             skipped.append(stream["name"])
-            print(f"{stream['name']}: dark (sun at {height:.1f} degrees), skipping")
+            print(f"{stream['name']}: outside photo window (sun at {height:.1f} degrees), skipping")
             continue
         try:
             target = grab_frame(stream, now)
