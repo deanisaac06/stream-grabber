@@ -2,7 +2,7 @@ name: Snapshots
 
 on:
   schedule:
-    - cron: "17 */2 * * *"   # every 2 hours (UTC); GitHub often starts these a bit late
+    - cron: "17 * * * *" # every hour (UTC); daylight check happens in the script. GitHub often starts these a bit late
   workflow_dispatch:
     inputs:
       force:
