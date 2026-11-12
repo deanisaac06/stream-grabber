@@ -4,9 +4,10 @@
 #   lat, lon  where the camera is, in decimal degrees (used to work out daylight)
 #   tz        the camera's timezone, e.g. America/Los_Angeles
 #
-# Snapshots are only taken while the sun is at least this many degrees above
-# the horizon. Use -6 to include dawn and dusk.
-min_sun_elevation: 0
+# Snapshots are taken hourly from this long before sunrise until this long after
+# sunset, using each camera's lat/lon. Change the 60s below to adjust.
+minutes_before_sunrise: 60
+minutes_after_sunset: 60
 
 streams:
   - name: summit-west-base
@@ -25,4 +26,16 @@ streams:
     url: https://www.youtube.com/watch?v=w4Sno8NIjmU
     lat: 47.4003
     lon: -121.4116
+    tz: America/Los_Angeles
+
+  - name: alpental-mid
+    url: https://www.youtube.com/watch?v=c_XLrUYV8tk
+    lat: 47.4400
+    lon: -121.4360
+    tz: America/Los_Angeles
+
+  - name: alpental-base
+    url: https://www.youtube.com/watch?v=8wk81COX2cg
+    lat: 47.4450
+    lon: -121.4270
     tz: America/Los_Angeles
